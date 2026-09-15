@@ -261,9 +261,41 @@ def send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail="请跟进。
         return False, r.stdout[:200]
 
 
+def format_dm_content(original_content):
+    """格式化私信内容：把被吞换行的单行机器人消息重新分行，提升可读性。
+    兼容泰语（泰国）和中文（港澳/台湾）格式。"""
+    content = original_content.strip()
+
+    # 如果已经有换行符（超过2个），认为格式正常，直接返回
+    if content.count("\n") >= 2:
+        return content
+
+    # 泰语字段关键词（按出现顺序）
+    th_fields = [
+        "ชื่อผู้ใช้", "CC ที่ได้รับจัดสรร", "สถานการณ์การจัดสรร",
+        "เหตุผลที่สนใจสูง", "สรุปผลการโทร",
+    ]
+    # 中文字段关键词
+    zh_fields = [
+        "用户姓名", "分配CC", "分配情况", "高意向原因", "通话总结",
+    ]
+
+    # 在每个字段前插入换行（第一个字段除外，它前面是标题）
+    for field in th_fields + zh_fields:
+        # 只在字段前没有换行时插入
+        pattern = re.compile(r"(?<!\n)\s*(" + re.escape(field) + r"\s*[：:])")
+        content = pattern.sub(r"\n\1", content)
+
+    # 标题行（⚠️开头）后面加换行
+    content = re.sub(r"(⚠️[^\n]*?)\s*(ชื่อผู้ใช้|用户姓名)", r"\1\n\2", content)
+
+    return content.strip()
+
+
 def send_dm_message(cc_oid, msg_id, original_content, reply_tail="please follow up"):
-    """私信发送：把机器人原版消息内容 + 提醒语，单聊发给 CC。带幂等键。"""
-    text = f"{original_content}\n\n{reply_tail}"
+    """私信发送：把机器人原版消息内容（格式化分行）+ 提醒语，单聊发给 CC。带幂等键。"""
+    formatted = format_dm_content(original_content)
+    text = f"{formatted}\n\n{reply_tail}"
     cmd = [
         "dws", "chat", "message", "send",
         "--open-dingtalk-id", cc_oid,
