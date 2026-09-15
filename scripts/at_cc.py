@@ -262,15 +262,14 @@ def send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail="请跟进。
 
 
 def format_dm_content(original_content):
-    """格式化私信内容：把被吞换行的单行机器人消息重新分行，提升可读性。
+    """格式化私信内容：每个字段之间隔一个空行（双换行），提升可读性。
     兼容泰语（泰国）和中文（港澳/台湾）格式。"""
     content = original_content.strip()
 
-    # 如果已经有换行符（超过2个），认为格式正常，直接返回
-    if content.count("\n") >= 2:
-        return content
+    # 先把所有已有换行统一成单换行，再重新格式化
+    content = re.sub(r"\n+", " ", content)
 
-    # 泰语字段关键词（按出现顺序）
+    # 泰语字段关键词
     th_fields = [
         "ชื่อผู้ใช้", "CC ที่ได้รับจัดสรร", "สถานการณ์การจัดสรร",
         "เหตุผลที่สนใจสูง", "สรุปผลการโทร",
@@ -280,14 +279,16 @@ def format_dm_content(original_content):
         "用户姓名", "分配CC", "分配情况", "高意向原因", "通话总结",
     ]
 
-    # 在每个字段前插入换行（第一个字段除外，它前面是标题）
+    # 在每个字段前插入双换行（空行分隔）
     for field in th_fields + zh_fields:
-        # 只在字段前没有换行时插入
-        pattern = re.compile(r"(?<!\n)\s*(" + re.escape(field) + r"\s*[：:])")
-        content = pattern.sub(r"\n\1", content)
+        pattern = re.compile(r"\s*(" + re.escape(field) + r"\s*[：:])")
+        content = pattern.sub(r"\n\n\1", content)
 
-    # 标题行（⚠️开头）后面加换行
-    content = re.sub(r"(⚠️[^\n]*?)\s*(ชื่อผู้ใช้|用户姓名)", r"\1\n\2", content)
+    # 标题行（⚠️开头）和第一个字段之间也加空行
+    content = re.sub(r"(⚠️[^\n]*?)\s*\n\n(ชื่อผู้ใช้|用户姓名)", r"\1\n\n\2", content)
+
+    # 去掉开头多余的换行
+    content = content.lstrip("\n")
 
     return content.strip()
 
