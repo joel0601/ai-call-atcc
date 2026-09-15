@@ -262,7 +262,7 @@ def send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail="请跟进。
 
 
 def format_dm_content(original_content):
-    """格式化私信内容：每个字段之间隔一个空行（双换行），提升可读性。
+    """格式化私信内容：每个字段前加序号，字段之间隔一个空行（双换行），提升可读性。
     兼容泰语（泰国）和中文（港澳/台湾）格式。"""
     content = original_content.strip()
 
@@ -288,9 +288,17 @@ def format_dm_content(original_content):
     content = re.sub(r"(⚠️[^\n]*?)\s*\n\n(ชื่อผู้ใช้|用户姓名)", r"\1\n\n\2", content)
 
     # 去掉开头多余的换行
-    content = content.lstrip("\n")
+    content = content.lstrip("\n").strip()
 
-    return content.strip()
+    # 按双换行分割，给每段加序号
+    parts = re.split(r"\n\n+", content)
+    numbered = []
+    for i, part in enumerate(parts, 1):
+        part = part.strip()
+        if part:
+            numbered.append(f"{i}- {part}")
+
+    return "\n\n".join(numbered)
 
 
 def send_dm_message(cc_oid, msg_id, original_content, reply_tail="please follow up"):
