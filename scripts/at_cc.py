@@ -32,6 +32,9 @@ LOCK_FILE = os.path.join(STATE_DIR, "run.lock")
 LAST_RUN_FILE = os.path.join(STATE_DIR, "last_run.json")
 CC_MAP_FILE = os.path.join(STATE_DIR, "cc_map.json")
 
+# CC 总群：所有可能被分配的 CC 都在这个群里。私信模式下从这个群查找 CC（不需要 CC 在扫描群里）。
+DEFAULT_CC_GROUP = "cidXe6JdWz+VDELRVKtAxJAxA=="  # All CC Team -Thailand 2026
+
 # 英文名别名（CC 账号 → 中文真名）。直接映射真名，不依赖拼音转换。
 ALIASES = {
     "deven": "黄勇兴",
@@ -294,6 +297,22 @@ def process_group(group_cid, hours, dry_run, force, verbose, processed, reply_ta
         print(f"[FATAL] {group_cid} fetch members failed: {e} — abort this group")
         return None
     print(f"[INFO] {group_cid} fetched {len(members)} members")
+
+    # 私信模式：合并 CC 总群成员（CC 不一定在扫描群里，但一定在 CC 总群里）
+    if dm:
+        try:
+            cc_members = fetch_members(DEFAULT_CC_GROUP)
+            seen = {m.get("openDingtalkId") or m.get("openDingTalkId") for m in members}
+            added = 0
+            for m in cc_members:
+                oid = m.get("openDingtalkId") or m.get("openDingTalkId")
+                if oid and oid not in seen:
+                    members.append(m)
+                    seen.add(oid)
+                    added += 1
+            print(f"[INFO] merged CC group: +{added} members (total {len(members)})")
+        except Exception as e:
+            print(f"[WARN] fetch CC group members failed: {e} — using scan group members only")
 
     try:
         messages = fetch_messages(group_cid, since)

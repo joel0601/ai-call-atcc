@@ -81,9 +81,17 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 
 注意：私信模式下不会在群内发送任何消息，CC 只会收到单聊提醒。
 
-### CC 映射表（不在群里的 CC）
+### CC 总群（主要查找来源）
 
-私信模式下 CC 不需要在群里，但需要知道 CC 的 openDingtalkId 才能发私信。
+私信模式下，CC 不需要在泰国群里，但所有 CC 都在「All CC Team -Thailand 2026」总群里。
+
+- 总群 cid：`cidXe6JdWz+VDELRVKtAxJAxA==`（73人）
+- 脚本自动合并泰国群 + CC 总群成员，在合并列表中查找 CC
+- 例如 `yuyang` → 于洋（Ryan CC Operation），即使他不在泰国群也能找到
+
+### CC 映射表（补充方案，CC 总群里也找不到时）
+
+如果某个 CC 不在 CC 总群里，手动添加到映射表。
 
 维护文件：`state/cc_map.json`
 
@@ -99,9 +107,11 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 
 ## CC 解析多级策略
 
+**成员来源**：群内@模式用扫描群成员；私信模式自动合并「扫描群 + CC 总群（All CC Team -Thailand 2026）」成员。
+
 按顺序尝试，命中即返回：
 1. **别名展开**：Deven→黄勇兴、Liam→李冠清（脚本内 ALIASES 字典）
-2. **CC 映射表**：查 `state/cc_map.json`（用于不在群里的 CC，私信模式）
+2. **CC 映射表**：查 `state/cc_map.json`（补充方案，CC 总群里也找不到时）
 3. **去前缀**：去掉 `51` / `THCC-` 前缀
 4. **精确匹配**：昵称整体 / 括号内容 / 真名归一化
 5. **切词匹配**：按空格切词，短英文名如 `THCC-pang` → `Pang Jennisa`
