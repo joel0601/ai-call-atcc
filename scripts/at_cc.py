@@ -30,6 +30,7 @@ os.makedirs(STATE_DIR, exist_ok=True)
 PROCESSED_FILE = os.path.join(STATE_DIR, "processed.json")
 LOCK_FILE = os.path.join(STATE_DIR, "run.lock")
 LAST_RUN_FILE = os.path.join(STATE_DIR, "last_run.json")
+CC_MAP_FILE = os.path.join(STATE_DIR, "cc_map.json")
 
 # 英文名别名（CC 账号 → 中文真名）。直接映射真名，不依赖拼音转换。
 ALIASES = {
@@ -65,6 +66,13 @@ def save_json(path, data):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
+
+
+def load_cc_map():
+    """加载 CC 账号 → openDingtalkId 映射表（用于不在群里的 CC，私信模式）。
+    格式: {"xuanjingsheng": {"oid": "xxx", "name": "宣景胜"}, ...}
+    手动维护：新 CC 不在群里时，添加到 state/cc_map.json。"""
+    return load_json(CC_MAP_FILE, {})
 
 
 def norm(s):
@@ -128,6 +136,18 @@ def resolve_cc(cc_account, members):
     # 0. 英文名别名展开
     if target in ALIASES:
         target = ALIASES[target]
+
+    # 0.5 CC 映射表（用于不在群里的 CC，私信模式）
+    cc_map = load_cc_map()
+    map_key = stripped.lower()
+    if map_key in cc_map:
+        entry = cc_map[map_key]
+        return entry.get("oid"), entry.get("name", map_key)
+    # 也尝试去尾部数字版本
+    no_digits_map = re.sub(r"\d+$", "", map_key)
+    if no_digits_map and no_digits_map != map_key and no_digits_map in cc_map:
+        entry = cc_map[no_digits_map]
+        return entry.get("oid"), entry.get("name", no_digits_map)
 
     # 匹配候选：完整 target + 去尾部数字版本（如 kangxianghua001 → kangxianghua）
     targets = {target}

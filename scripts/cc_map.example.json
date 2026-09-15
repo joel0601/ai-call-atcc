@@ -1,0 +1,6 @@
+{
+  "_comment": "CC账号 → openDingtalkId 映射表。用于不在钉钉群里的CC（私信模式）。手动维护：新CC不在群里时，添加到这里。key为CC账号去前缀后小写，value含oid和name。",
+  "_example": {
+    "xuanjingsheng": {"oid": "DWOrlM3pwwf...", "name": "宣景胜"}
+  }
+}

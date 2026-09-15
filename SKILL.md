@@ -81,16 +81,33 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 
 注意：私信模式下不会在群内发送任何消息，CC 只会收到单聊提醒。
 
+### CC 映射表（不在群里的 CC）
+
+私信模式下 CC 不需要在群里，但需要知道 CC 的 openDingtalkId 才能发私信。
+
+维护文件：`state/cc_map.json`
+
+```json
+{
+  "xuanjingsheng": {"oid": "DWOrlM3pwwf...", "name": "宣景胜"}
+}
+```
+
+- key：CC 账号去前缀后小写（如 `THCC-xuanjingsheng` → `xuanjingsheng`）
+- value：`oid`（openDingtalkId）和 `name`（显示名）
+- 新 CC 不在群里时，手动添加到这个文件
+
 ## CC 解析多级策略
 
 按顺序尝试，命中即返回：
 1. **别名展开**：Deven→黄勇兴、Liam→李冠清（脚本内 ALIASES 字典）
-2. **去前缀**：去掉 `51` / `THCC-` 前缀
-3. **精确匹配**：昵称整体 / 括号内容 / 真名归一化
-4. **切词匹配**：按空格切词，短英文名如 `THCC-pang` → `Pang Jennisa`
-5. **拼音匹配**：中文真名→全拼（pypinyin）
-6. **去尾部数字**：`51kangxianghua001` → `kangxianghua` 再匹配
-7. **模糊包含**：长度≥6时子串匹配，仅唯一命中才返回
+2. **CC 映射表**：查 `state/cc_map.json`（用于不在群里的 CC，私信模式）
+3. **去前缀**：去掉 `51` / `THCC-` 前缀
+4. **精确匹配**：昵称整体 / 括号内容 / 真名归一化
+5. **切词匹配**：按空格切词，短英文名如 `THCC-pang` → `Pang Jennisa`
+6. **拼音匹配**：中文真名→全拼（pypinyin）
+7. **去尾部数字**：`51kangxianghua001` → `kangxianghua` 再匹配
+8. **模糊包含**：长度≥6时子串匹配，仅唯一命中才返回
 
 **安全阀**：拉群成员失败或返回空列表时，中止该群处理，绝不发纯文本@（无红点）。
 
