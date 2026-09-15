@@ -238,11 +238,35 @@ def send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail="请跟进。
         return False, r.stdout[:200]
 
 
-def process_group(group_cid, hours, dry_run, force, verbose, processed, reply_tail="请跟进。"):
-    """处理单个群，返回该群的 results 列表。成员拉取失败返回 None（中止该群）。"""
+def send_dm_message(cc_oid, msg_id, original_content, reply_tail="please follow up"):
+    """私信发送：把机器人原版消息内容 + 提醒语，单聊发给 CC。带幂等键。"""
+    text = f"{original_content}\n\n{reply_tail}"
+    cmd = [
+        "dws", "chat", "message", "send",
+        "--open-dingtalk-id", cc_oid,
+        "--uuid", f"atcc-dm-{msg_id}",
+        "--text", text,
+        "--format", "json", "-y",
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        return False, r.stderr[:300]
+    try:
+        resp = json.loads(r.stdout)
+        if resp.get("success"):
+            return True, resp.get("result", {}).get("openTaskId", "")
+        return False, resp.get("errorMsg", r.stdout[:200])
+    except json.JSONDecodeError:
+        return False, r.stdout[:200]
+
+
+def process_group(group_cid, hours, dry_run, force, verbose, processed, reply_tail="请跟进。", dm=False):
+    """处理单个群，返回该群的 results 列表。成员拉取失败返回 None（中止该群）。
+    dm=True 时使用私信发送（把机器人原版内容+提醒语单聊发给CC），否则群内真@。"""
     since = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
     today = datetime.now().strftime("%Y-%m-%d")
-    print(f"[INFO] group={group_cid} hours={hours} since={since} dry_run={dry_run}")
+    mode = "DM" if dm else "AT"
+    print(f"[INFO] group={group_cid} hours={hours} since={since} dry_run={dry_run} mode={mode}")
 
     try:
         members = fetch_members(group_cid)
@@ -285,19 +309,25 @@ def process_group(group_cid, hours, dry_run, force, verbose, processed, reply_ta
         cc_oid, cc_name = resolved
 
         if dry_run:
-            print(f"[DRY] {group_cid} would @ {cc_name} for user {user_id}")
+            action = "DM" if dm else "@"
+            print(f"[DRY] {group_cid} would {action} {cc_name} for user {user_id}")
             results.append({"group": group_cid, "user_id": user_id, "cc": cc_account, "cc_name": cc_name, "status": "dry", "time": create_time})
             continue
 
-        ok, detail = send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail)
+        if dm:
+            ok, detail = send_dm_message(cc_oid, msg_id, content, reply_tail)
+        else:
+            ok, detail = send_at_message(group_cid, user_id, cc_oid, msg_id, reply_tail)
         if ok:
             processed[omid_key] = {"ts": datetime.now().isoformat(), "user_id": user_id, "cc": cc_account}
             processed[biz_key] = {"ts": datetime.now().isoformat(), "user_id": user_id, "cc": cc_account}
             save_json(PROCESSED_FILE, processed)
-            print(f"[OK] {group_cid} @ {cc_name} for user {user_id}")
+            action = "DM" if dm else "@"
+            print(f"[OK] {group_cid} {action} {cc_name} for user {user_id}")
             results.append({"group": group_cid, "user_id": user_id, "cc": cc_account, "cc_name": cc_name, "status": "sent", "time": create_time})
         else:
-            print(f"[FAIL] {group_cid} send failed user={user_id} cc={cc_account}: {detail}")
+            action = "DM" if dm else "send"
+            print(f"[FAIL] {group_cid} {action} failed user={user_id} cc={cc_account}: {detail}")
             results.append({"group": group_cid, "user_id": user_id, "cc": cc_account, "status": "failed", "error": detail, "time": create_time})
 
     return results
@@ -310,6 +340,7 @@ def main():
     parser.add_argument("--hours", type=float, default=0.2, help="回溯小时数（默认0.2=12分钟）")
     parser.add_argument("--dry-run", action="store_true", help="只解析不发送")
     parser.add_argument("--force", action="store_true", help="忽略去重记录重跑")
+    parser.add_argument("--dm", action="store_true", help="私信模式：把机器人原版内容+提醒语单聊发给CC（仅泰国群使用）")
     parser.add_argument("-v", "--verbose", action="store_true", help="显示跳过的已处理消息")
     args = parser.parse_args()
 
@@ -326,7 +357,7 @@ def main():
             parts = gspec.split("|", 1)
             gcid = parts[0]
             reply_tail = parts[1] if len(parts) > 1 else "请跟进。"
-            r = process_group(gcid, args.hours, args.dry_run, args.force, args.verbose, processed, reply_tail)
+            r = process_group(gcid, args.hours, args.dry_run, args.force, args.verbose, processed, reply_tail, dm=args.dm)
             if r is not None:
                 all_results.extend(r)
 
@@ -339,6 +370,7 @@ def main():
             "ts": datetime.now().isoformat(),
             "groups": args.group,
             "hours": args.hours,
+            "dm": args.dm,
             "matched": len(all_results),
             "sent": sent,
             "unresolved": unresolved,

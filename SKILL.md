@@ -25,8 +25,11 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0
 # 多群联合扫描
 python3 scripts/at_cc.py --group <cid1> --group <cid2> --hours 1.0
 
-# 指定英文回复语（泰国群）
+# 指定英文回复语（泰国群，群内@模式）
 python3 scripts/at_cc.py --group "<cid>|Please follow." --hours 1.0
+
+# 私信模式（泰国群使用）：把机器人原版内容+提醒语单聊发给CC
+python3 scripts/at_cc.py --group "<cid>|please follow up" --hours 1.0 --dm
 
 # 只解析不发送
 python3 scripts/at_cc.py --group <cid> --hours 1.0 --dry-run
@@ -41,17 +44,18 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 |---|---|
 | `--group` | 群 openConversationId，可重复传。格式 `cid` 或 `cid\|回复语`（如 `cid\|Please follow.`） |
 | `--hours` | 回溯小时数，默认 0.2。定时任务建议 1.0（覆盖 agent 启动延迟） |
+| `--dm` | 私信模式：把机器人原版消息内容+提醒语单聊发给CC（仅泰国群使用） |
 | `--dry-run` | 只解析不发送 |
 | `--force` | 忽略去重记录重跑 |
 | `-v` | 显示跳过的已处理消息 |
 
 ## 已知群配置
 
-| 市场 | 群 cid | 机器人 | 回复语 |
-|---|---|---|---|
-| 台湾 | `cidg7cEDaidhZV2ZVElAHOGyg==` | 道明寺 | 请跟进。 |
-| 港澳 | `cidTrTXRhb44Vj9kvCq+H11vg==` | 陈冠希 | 请跟进。 |
-| 泰国 | `cidfjvLwZcVixOuCMPbqfpe8g==` | Tony Jaa | Please follow. |
+| 市场 | 群 cid | 机器人 | 提醒方式 | 回复语 |
+|---|---|---|---|---|
+| 台湾 | `cidg7cEDaidhZV2ZVElAHOGyg==` | 道明寺 | 群内真@ | 请跟进。 |
+| 港澳 | `cidTrTXRhb44Vj9kvCq+H11vg==` | 陈冠希 | 群内真@ | 请跟进。 |
+| 泰国 | `cidfjvLwZcVixOuCMPbqfpe8g==` | Tony Jaa | **私信** | please follow up |
 
 ## 真 @ 机制（不可省略）
 
@@ -64,6 +68,18 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 消息格式：
 - 中文：`（用户ID），@CC名，请跟进。`
 - 英文：`（用户ID），@CC名 Please follow.`
+
+## 私信模式（泰国群专用）
+
+泰国群不使用群内@，改为私信提醒CC。使用 `--dm` 参数启用。
+
+私信内容 = 机器人发送的原版消息内容 + 空行 + 提醒语（`please follow up`）
+
+发送方式：
+- `--open-dingtalk-id <cc_oid>` 单聊接收人
+- `--uuid atcc-dm-<msg_id>` 幂等键（与群内@的 `atcc-<msg_id>` 区分）
+
+注意：私信模式下不会在群内发送任何消息，CC 只会收到单聊提醒。
 
 ## CC 解析多级策略
 
@@ -121,17 +137,17 @@ python3 scripts/at_cc.py --group <cid> --hours 1.0 --force
 用 2 个定时任务覆盖全部排期（cron 表达式按用户时区）：
 
 1. **中文群（港澳+台湾）**：`15,30,45 10-12,14-15,19-20 * * *`
-   - 扫描台湾+港澳群，中文回复"请跟进。"
+   - 扫描台湾+港澳群，群内真@，中文回复"请跟进。"
 2. **泰国群（英文）**：`15 11,14,20 * * *`
-   - 扫描泰国群，英文回复"Please follow."
+   - 扫描泰国群，**私信模式**（`--dm`），把机器人原版内容私信发给CC，末尾加"please follow up"
 
 每个任务 query 开头必须写：`本次请求是由「{title}」定时任务到时触发的。`
 
 ## 执行流程
 
 1. `dws auth status` 确认登录态（失效则引导扫码）
-2. 执行 `python3 scripts/at_cc.py --group ... --hours 1.0`
-3. 解析输出：`[OK]` 为成功@、`[WARN]` 为CC未解析、`[FAIL]` 为发送失败、`[SKIP]` 为已处理
+2. 执行 `python3 scripts/at_cc.py --group ... --hours 1.0`（泰国群加 `--dm`）
+3. 解析输出：`[OK]` 为成功发送（群内@或私信）、`[WARN]` 为CC未解析、`[FAIL]` 为发送失败、`[SKIP]` 为已处理
 4. 报告各群命中/发送/失败数，列出未解析的CC账号
 5. 若 dws 登录态失效，告知用户需重新扫码登录
 
